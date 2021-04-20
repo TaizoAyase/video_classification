@@ -1,0 +1,8 @@
+numpy>=1.20.2
+seaborn>=0.11.1
+scipy>=1.6.2
+matplotlib>=3.4.1
+pandas>=1.2.4
+Pillow>=8.2.0
+torch @ https://download.pytorch.org/whl/cu101/torch-1.8.1%2Bcu101-cp39-cp39-linux_x86_64.whl
+torchvision @ https://download.pytorch.org/whl/cu101/torchvision-0.9.1%2Bcu101-cp39-cp39-linux_x86_64.whl
