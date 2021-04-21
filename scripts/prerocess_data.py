@@ -1,3 +1,4 @@
+import argparse
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -25,7 +26,7 @@ def save_frames(
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
-            print(f"{str(video_path)} finished.")
+            # print(f"{str(video_path)} finished.")
             break
 
         if count % cpf == 0:
@@ -42,12 +43,16 @@ def save_frames(
     cap.release()
 
 
-save_root = Path("/home/ayase/tmp/frames_test")
+parser = argparse.ArgumentParser()
+parser.add_argument("--input_root", help="input root directory for mp4 files")
+parser.add_argument("--output_root", help="Directory to output save images")
+args = parser.parse_args()
+
+save_root = Path(args.input_root)
 save_root.mkdir(exist_ok=True)
 
-search_root = Path("/mnt/multimedia/nico_download/")
+search_root = Path(args.output_root)
 flist = list(search_root.glob("./*/*mp4"))
-
 
 id_dict = {}
 all_dict = defaultdict(dict)
@@ -59,12 +64,14 @@ for f in tqdm(flist):
     if prog_name not in id_dict:
         id_dict[prog_name] = prog_id
         prog_id += 1
-
     all_dict[prog_id][video_id] = str(f)
-    save_dir = save_root / f"{prog_id:05d}"
+
+    pid = id_dict[prog_name]
+    save_dir = save_root / f"{pid:05d}"
     basename = f"{video_id:09d}"
     save_dir.mkdir(exist_ok=True)
     save_frames(video_path=f, save_root=save_dir, basename=basename, interval_sec=30)
+    video_id += 1
 
 with open("prog_id.json", "w") as f:
     json.dump(id_dict, f)
