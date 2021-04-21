@@ -48,10 +48,10 @@ parser.add_argument("--input_root", help="input root directory for mp4 files")
 parser.add_argument("--output_root", help="Directory to output save images")
 args = parser.parse_args()
 
-save_root = Path(args.input_root)
+save_root = Path(args.output_root)
 save_root.mkdir(exist_ok=True)
 
-search_root = Path(args.output_root)
+search_root = Path(args.input_root)
 flist = list(search_root.glob("./*/*mp4"))
 
 id_dict = {}
