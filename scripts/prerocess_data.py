@@ -64,9 +64,9 @@ for f in tqdm(flist):
     if prog_name not in id_dict:
         id_dict[prog_name] = prog_id
         prog_id += 1
-    all_dict[prog_id][video_id] = str(f)
 
     pid = id_dict[prog_name]
+    all_dict[pid][video_id] = str(f)
     save_dir = save_root / f"{pid:05d}"
     basename = f"{video_id:09d}"
     save_dir.mkdir(exist_ok=True)
