@@ -44,8 +44,11 @@ def save_frames(
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--input_root", help="input root directory for mp4 files")
-parser.add_argument("--output_root", help="Directory to output save images")
+parser.add_argument("--input_root", type=str, help="input root directory for mp4 files")
+parser.add_argument("--output_root", type=str, help="Directory to output save images")
+parser.add_argument("--width", default=224, type=int, help="resize image width")
+parser.add_argument("--height", default=224, type=int, help="reside image height")
+parser.add_argument("--interval", default=60, type=int, help="frame interval (sec)")
 args = parser.parse_args()
 
 save_root = Path(args.output_root)
@@ -65,12 +68,19 @@ for f in tqdm(flist):
         id_dict[prog_name] = prog_id
         prog_id += 1
 
-    pid = id_dict[prog_name]
-    all_dict[pid][video_id] = str(f)
-    save_dir = save_root / f"{pid:05d}"
+    current_pid = id_dict[prog_name]
+    all_dict[current_pid][video_id] = str(f)
+    save_dir = save_root / f"{current_pid:05d}"
     basename = f"{video_id:09d}"
     save_dir.mkdir(exist_ok=True)
-    save_frames(video_path=f, save_root=save_dir, basename=basename, interval_sec=30)
+    save_frames(
+        video_path=f,
+        save_root=save_dir,
+        basename=basename,
+        interval_sec=args.interval,
+        image_width=args.width,
+        image_heigh=args.height,
+    )
     video_id += 1
 
 with open("prog_id.json", "w") as f:
