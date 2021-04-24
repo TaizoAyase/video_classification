@@ -1,9 +1,10 @@
 import argparse
+import hashlib
 import json
-from collections import defaultdict
 from pathlib import Path
 
 import cv2
+from joblib import Parallel, delayed
 from tqdm import tqdm
 
 
@@ -48,6 +49,7 @@ parser.add_argument("--input_root", type=str, help="input root directory for mp4
 parser.add_argument("--output_root", type=str, help="Directory to output save images")
 parser.add_argument("--width", default=224, type=int, help="resize image width")
 parser.add_argument("--height", default=224, type=int, help="reside image height")
+parser.add_argument("--n_jobs", default=8, type=int, help="number of workers")
 parser.add_argument("--interval", default=60, type=int, help="frame interval (sec)")
 args = parser.parse_args()
 
@@ -58,9 +60,7 @@ search_root = Path(args.input_root)
 flist = list(search_root.glob("./*/*mp4"))
 
 id_dict = {}
-all_dict = defaultdict(dict)
 prog_id = 0
-video_id = 0
 for f in tqdm(flist):
     f: Path
     prog_name = f.parent.name
@@ -68,23 +68,25 @@ for f in tqdm(flist):
         id_dict[prog_name] = prog_id
         prog_id += 1
 
+with open("prog_id.json", "w") as f:
+    json.dump(id_dict, f)
+
+
+def process(file: Path):
+    prog_name = file.parent.name
     current_pid = id_dict[prog_name]
-    all_dict[current_pid][video_id] = str(f)
     save_dir = save_root / f"{current_pid:05d}"
-    basename = f"{video_id:09d}"
+    video_id = hashlib.md5(file.name.encode()).hexdigest()
     save_dir.mkdir(exist_ok=True)
     save_frames(
-        video_path=f,
+        video_path=file,
         save_root=save_dir,
-        basename=basename,
+        basename=video_id,
         interval_sec=args.interval,
         image_width=args.width,
         image_heigh=args.height,
     )
-    video_id += 1
 
-with open("prog_id.json", "w") as f:
-    json.dump(id_dict, f)
 
-with open("all_mapping.json", "w") as f:
-    json.dump(all_dict, f)
+Parallel(n_jobs=args.n_jobs, verbose=10)(delayed(process)(f) for f in flist)
+# [process(f) for f in tqdm(flist)]

@@ -16,6 +16,7 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 from sklearn.model_selection import train_test_split
 from torchvision import datasets
+
 from video_classification.dataset.image_dataset import ImageFolderDatasetPreload
 
 model_names = sorted(
@@ -95,7 +96,7 @@ parser.add_argument("--snapshot", default=None, type=str, help="Snapshot to resu
 def train(manager, args, model, lossfn, device, train_loader):
     while not manager.stop_trigger:
         model.train()
-        for batch_idx, (data, target) in enumerate(train_loader):
+        for batch_idx, (data, target) in enumerate(train_loader):  # noqa
             correct = 0
             with manager.run_iteration(step_optimizers=["main"]):
                 data, target = data.to(device), target.to(device)
@@ -228,7 +229,7 @@ def main():
                 "lr",
             ]
         ),
-        extensions.snapshot(),
+        extensions.snapshot(n_retains=5),
     ]
     trigger = None
     manager = ppe.training.ExtensionsManager(
