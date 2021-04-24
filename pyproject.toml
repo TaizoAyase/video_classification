@@ -1,0 +1,11 @@
+[tool.pysen]
+version = "0.9"
+
+[tool.pysen.lint]
+enable_black = true
+enable_isort = true
+enable_flake8 = true
+enable_mypy = false
+line_length = 88
+py_version = "py38"
+isort_known_first_party = ["video_classification"]
