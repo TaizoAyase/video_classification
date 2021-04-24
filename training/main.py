@@ -1,10 +1,12 @@
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
 import pytorch_pfn_extras as ppe
 import pytorch_pfn_extras.training.extensions as extensions
 import torch
+import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.nn.parallel
 import torch.optim
@@ -64,6 +66,7 @@ parser.add_argument(
     dest="lr",
 )
 parser.add_argument("--momentum", default=0.9, type=float, metavar="M", help="momentum")
+parser.add_argument("--lr-step", default=30, type=int, help="lr scheduler step (epoch)")
 parser.add_argument(
     "--wd",
     "--weight-decay",
@@ -79,6 +82,10 @@ parser.add_argument(
 parser.add_argument(
     "--preload", dest="preload", action="store_true", help="pre-load dataset images"
 )
+parser.add_argument(
+    "--debug", dest="debug", action="store_true", help="debug with small dataset"
+)
+parser.add_argument("--test-frac", default=0.2, type=float, help="test data fraction")
 parser.add_argument("--seed", default=777, type=int, help="seed for splitting.")
 parser.add_argument("--gpu", default=-1, type=int, help="GPU id to use.")
 parser.add_argument("--out", default="./results", type=str, help="Output dirname.")
@@ -97,7 +104,7 @@ def train(manager, args, model, lossfn, device, train_loader):
                 ppe.reporting.report({"train/loss": loss.item()})
                 pred = output.argmax(dim=1, keepdim=True)
                 correct += pred.eq(target.view_as(pred)).sum().item()
-                ppe.reporting.report({"val/acc": correct / len(data)})
+                ppe.reporting.report({"train/acc": correct / len(data)})
                 loss.backward()
 
 
@@ -112,7 +119,7 @@ def test(args, model, lossfn, device, data, target):
     data, target = data.to(device), target.to(device)
     output = model(data)
     # Final result will be average of averages of the same size
-    test_loss += lossfn(output, target, reduction="mean").item()
+    test_loss += lossfn(output, target).item()
     ppe.reporting.report({"val/loss": test_loss})
     pred = output.argmax(dim=1, keepdim=True)
     correct += pred.eq(target.view_as(pred)).sum().item()
@@ -123,7 +130,10 @@ def main():
     args = parser.parse_args()
 
     use_cuda = args.gpu >= 0 and torch.cuda.is_available()
+    if use_cuda:
+        cudnn.benchmark = True
     device = torch.device(f"cuda:{args.gpu}" if use_cuda else "cpu")
+    print(f"using device {device}")
 
     mean = np.loadtxt("../data/mean.txt")
     sigma = np.loadtxt("../data/sigma.txt")
@@ -145,7 +155,7 @@ def main():
 
     train_indices, val_indices = train_test_split(
         list(range(len(dataset.targets))),
-        test_size=0.2,
+        test_size=args.test_frac,
         random_state=args.seed,
         shuffle=True,
         stratify=dataset.targets,
@@ -153,7 +163,17 @@ def main():
     train_dataset = torch.utils.data.Subset(dataset, train_indices)
     val_dataset = torch.utils.data.Subset(dataset, val_indices)
 
-    kwargs = {"num_workers": 1, "pin_memory": True} if use_cuda else {}
+    if args.debug:
+        n_train = 100
+        n_test = 10
+        train_dataset, _ = torch.utils.data.random_split(
+            train_dataset, [n_train, len(train_dataset) - n_train]
+        )
+        val_dataset, _ = torch.utils.data.random_split(
+            val_dataset, [n_test, len(val_dataset) - n_test]
+        )
+
+    kwargs = {"num_workers": args.workers, "pin_memory": True} if use_cuda else {}
     train_data_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True, **kwargs
     )
@@ -176,12 +196,14 @@ def main():
 
     outdir = Path(args.out)
     outdir.mkdir(exist_ok=True)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, 0.1)
     my_extensions = [
         extensions.LogReport(),
-        extensions.ProgressBar(),
+        extensions.ProgressBar(update_interval=1),
         extensions.observe_lr(optimizer=optimizer),
-        extensions.ParameterStatistics(model, prefix="model"),
-        extensions.VariableStatisticsPlot(model),
+        extensions.LRScheduler(scheduler, trigger=(args.lr_step, "epoch")),
+        # extensions.ParameterStatistics(model, prefix="model"),
+        # extensions.VariableStatisticsPlot(model),
         extensions.Evaluator(
             val_data_loader,
             model,
@@ -221,6 +243,8 @@ def main():
     if args.snapshot is not None:
         state = torch.load(args.snapshot)
         manager.load_state_dict(state)
+    with open(outdir / "args.json", "w") as f:
+        json.dump(vars(args), f)
     train(manager, args, model, lossfn, device, train_data_loader)
     torch.save(model.state_dict(), str(outdir / "model.pt"))
 
