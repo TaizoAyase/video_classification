@@ -141,13 +141,14 @@ def main():
 
     transform_fn = transforms.Compose(
         [
-            transforms.RandomResizedCrop(224),
+            transforms.RandomCrop(224),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
             transforms.ToTensor(),
             normalize,
         ]
     )
+
     if args.preload:
         dataset = ImageFolderDatasetPreload(args.data, transform_fn)
     else:
